@@ -82,6 +82,30 @@ let currentMenuSender = null;
 let selectedFolders = []; 
 let searchTimeout = null; // Timer per la ricerca dinamica
 
+
+// --- PULIZIA AL RICARICAMENTO ---
+// Se l'utente ricarica la pagina (F5, location.reload, watchdog) → stato completamente vergine.
+(async function wipeOnReload() {
+  const navEntry = performance.getEntriesByType('navigation')[0];
+  const isReload = navEntry && navEntry.type === 'reload';
+
+  if (isReload) {
+    console.log('Ricaricamento rilevato: azzero tutto.');
+
+    // 1. Cache API di rete
+    if ('caches' in window) {
+      const names = await caches.keys();
+      await Promise.all(names.map(n => caches.delete(n)));
+    }
+
+    // 2. localStorage e sessionStorage completamente svuotati
+    localStorage.clear();
+    sessionStorage.clear();
+    localStorage.clear();
+
+    console.log('Pulizia completata. Partenza come primo accesso.');
+  }
+})();
 // --- WATCHDOG: se il pulsante resta su "Caricamento..." per più di 3s, ricarica la pagina ---
 const LOADING_WATCHDOG_MS = 3000;
 const _loadingWatchdog = setTimeout(() => {
@@ -205,13 +229,10 @@ async function clearAppCaches() {
       console.log(`Cache API: eliminate ${cacheNames.length} cache.`);
     }
 
-    // 2. sessionStorage completo
+    // 2. sessionStorage e localStorage (il flag autologin viene impostato subito dopo da onLoginSuccess)
     sessionStorage.clear();
-
-    // 3. localStorage: rimuovi tutto tranne il flag di autologin
-    const autologin = localStorage.getItem('mailcleaner_autologin');
     localStorage.clear();
-    if (autologin !== null) localStorage.setItem('mailcleaner_autologin', autologin);
+
 
     console.log('Cache app pulite con successo.');
   } catch (e) {
