@@ -637,50 +637,138 @@ document.getElementById('menu-group-selected').addEventListener('click', () => {
 async function groupEmailsBySender(senderHeader) {
   const emailMatch = senderHeader.match(/<(.+)>/);
   const senderEmail = emailMatch ? emailMatch[1] : senderHeader.trim();
-  const cleanName = senderEmail.split('@')[0].replace(/[^a-zA-Z0-9]/g, '_');
-  const labelName = `Archivio_${cleanName}`; 
+  const cleanName  = senderEmail.split('@')[0].replace(/[^a-zA-Z0-9]/g, '_');
+  const labelName  = `Archivio_${cleanName}`;
 
-  const container = document.getElementById('email_list');
-  const oldHtml = container.innerHTML;
-  container.innerHTML = `<p>⏳ Spostamento mail di <b>${senderEmail}</b> in <b>${labelName}</b>...</p>`;
+  // ── Mostra pannello di avanzamento ──────────────────────────────────
+  showGroupProgress({
+    sender: senderEmail,
+    label:  labelName,
+    phase:  'search',
+    found:  0,
+    moved:  0,
+    total:  0
+  });
 
   try {
+    // 1. Crea (o recupera) la cartella di destinazione
     const labelId = await getOrCreateLabel(labelName);
-    let pageToken = null;
-    let movedCount = 0;
+
+    // 2. Raccoglie TUTTI gli ID con "in:anywhere" — nessuna cartella esclusa
+    //    (inbox, sent, spam, trash, cartelle personalizzate, ecc.)
+    let allIds   = [];
+    let pageToken = undefined;
 
     do {
-        const searchResp = await gapi.client.gmail.users.messages.list({
-            'userId': 'me',
-            'q': `from:${senderEmail}`,
-            'pageToken': pageToken
-        });
-        
-        const messages = searchResp.result.messages;
-        pageToken = searchResp.result.nextPageToken;
+      const params = {
+        userId:     'me',
+        q:          `from:${senderEmail} in:anywhere`,
+        maxResults: 500
+      };
+      if (pageToken) params.pageToken = pageToken;
 
-        if (messages && messages.length > 0) {
-            const ids = messages.map(m => m.id);
-            await gapi.client.gmail.users.messages.batchModify({
-                'userId': 'me',
-                'resource': {
-                    'ids': ids,
-                    'addLabelIds': [labelId],
-                    'removeLabelIds': ['INBOX']
-                }
-            });
-            movedCount += ids.length;
-        }
+      const resp     = await gapi.client.gmail.users.messages.list(params);
+      const messages = resp.result.messages || [];
+      allIds.push(...messages.map(m => m.id));
+      pageToken = resp.result.nextPageToken;
+
+      updateGroupProgress({ phase: 'search', found: allIds.length });
+
     } while (pageToken);
 
-    alert(`✅ ${movedCount} email spostate in "${labelName}".`);
-    loadLabels(); 
-    listEmails(); 
+    const total = allIds.length;
+
+    if (total === 0) {
+      closeGroupProgress();
+      alert(`ℹ️ Nessuna email trovata da "${senderEmail}" in tutta la casella.`);
+      return;
+    }
+
+    // 3. Sposta in batch da 1000 (limite max API Gmail)
+    let moved = 0;
+    const CHUNK = 1000;
+
+    for (let i = 0; i < allIds.length; i += CHUNK) {
+      const chunk = allIds.slice(i, i + CHUNK);
+
+      await gapi.client.gmail.users.messages.batchModify({
+        userId: 'me',
+        resource: {
+          ids:            chunk,
+          addLabelIds:    [labelId],
+          removeLabelIds: ['INBOX', 'SPAM', 'TRASH']
+        }
+      });
+
+      moved += chunk.length;
+      updateGroupProgress({ phase: 'move', moved, total });
+    }
+
+    // 4. Fine
+    closeGroupProgress();
+    alert(`✅ ${moved.toLocaleString('it-IT')} email di "${senderEmail}" spostate in "${labelName}".`);
+    loadLabels();
+    listEmails();
 
   } catch (err) {
-    alert("Errore: " + err.message);
-    container.innerHTML = oldHtml;
+    closeGroupProgress();
+    alert('Errore durante il raggruppamento: ' + (err.message || JSON.stringify(err)));
   }
+}
+
+// ── UI avanzamento raggruppamento ────────────────────────────────────────
+function showGroupProgress({ sender, label, phase, found, moved, total }) {
+  let overlay = document.getElementById('group-progress-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'group-progress-overlay';
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML = `
+    <div id="group-progress-modal">
+      <div class="gp-icon">📁</div>
+      <h3 class="gp-title">Raggruppamento in corso…</h3>
+      <div class="gp-sender" title="${sender}">📧 ${sender}</div>
+      <div class="gp-label">→ Cartella: <strong>${label}</strong></div>
+
+      <div class="gp-phase" id="gp-phase">🔍 Ricerca in tutta la casella…</div>
+
+      <div class="gp-bar-track">
+        <div class="gp-bar-fill" id="gp-bar-fill" style="width:0%"></div>
+      </div>
+      <div class="gp-counters" id="gp-counters">Trovate: 0 email</div>
+
+      <small class="gp-note">Non chiudere la pagina durante l'operazione.</small>
+    </div>
+  `;
+  requestAnimationFrame(() => overlay.classList.add('gp-visible'));
+}
+
+function updateGroupProgress({ phase, found = 0, moved = 0, total = 0 }) {
+  const phaseEl   = document.getElementById('gp-phase');
+  const fillEl    = document.getElementById('gp-bar-fill');
+  const countersEl= document.getElementById('gp-counters');
+  if (!phaseEl) return;
+
+  if (phase === 'search') {
+    phaseEl.textContent    = '🔍 Ricerca in tutta la casella…';
+    fillEl.style.width     = '0%';
+    fillEl.classList.add('gp-bar-indeterminate');
+    countersEl.textContent = `Trovate finora: ${found.toLocaleString('it-IT')} email`;
+  } else {
+    phaseEl.textContent    = '📦 Spostamento nella cartella…';
+    fillEl.classList.remove('gp-bar-indeterminate');
+    const pct = total > 0 ? Math.round((moved / total) * 100) : 0;
+    fillEl.style.width     = pct + '%';
+    countersEl.textContent = `Spostate ${moved.toLocaleString('it-IT')} / ${total.toLocaleString('it-IT')} email (${pct}%)`;
+  }
+}
+
+function closeGroupProgress() {
+  const overlay = document.getElementById('group-progress-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('gp-visible');
+  setTimeout(() => overlay.remove(), 350);
 }
 
 async function groupSelectedEmails() {
