@@ -10,7 +10,6 @@
 
     <div class="header">
         <div class="header-left">
-            <!-- Hamburger: visibile solo su mobile, apre la sidebar -->
             <button id="sidebar-toggle" class="btn-hamburger" onclick="toggleSidebar()" aria-label="Apri cartelle">
                 ☰
             </button>
@@ -33,11 +32,9 @@
 
     <div id="app-container" class="hidden">
         
-        <!-- Overlay scuro dietro la sidebar su mobile -->
         <div id="sidebar-overlay" onclick="closeSidebar()"></div>
 
         <aside id="sidebar">
-            <!-- Pulsante chiudi sidebar (visibile solo su mobile) -->
             <button class="btn-close-sidebar" onclick="closeSidebar()" aria-label="Chiudi">✕</button>
 
             <div class="sidebar-header">
@@ -73,23 +70,15 @@
 
     </div>
 
-    <!--
-        Menu contestuale:
-        - Su desktop: appare dove fai click destro (posizionato in assoluto)
-        - Su mobile: appare come bottom-sheet dal basso (via classe .is-bottom-sheet)
-    -->
     <div id="custom-menu">
-        <div id="menu-handle"></div><!-- Maniglia visiva su mobile -->
-        <button id="menu-open">📖 Apri questa email</button>
+        <div id="menu-handle"></div><button id="menu-open">📖 Apri questa email</button>
         <button id="menu-delete">🗑️ Cancella questa email</button>
         <button id="menu-group">📁 Raggruppa per mittente</button>
         <button id="menu-group-selected">🗂️ Raggruppa selezionate</button>
         <button id="menu-cancel" class="btn-menu-cancel">Annulla</button>
     </div>
-    <!-- Overlay per chiudere il bottom-sheet su mobile -->
     <div id="menu-overlay" onclick="closeContextMenu()"></div>
 
-    <!-- Pulsante login fisso in basso a destra, sempre visibile -->
     <button id="authorize_button" onclick="handleAuthClick()" class="btn-auth-fixed disabled" disabled>
         <span class="btn-auth-icon">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="22" height="22">
