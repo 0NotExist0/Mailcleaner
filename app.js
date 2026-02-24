@@ -7,120 +7,11 @@ let tokenClient;
 let gapiInited = false;
 let gisInited = false;
 
-// --- GESTIONE RIENTRO CON RESET SESSIONE ---
-const SESSION_TIMEOUT_MS = 3000; // 3 secondi
-let hiddenAt = null;
-
-// Quando la pagina viene nascosta (cambio tab, blocco schermo, minimize), salviamo il timestamp
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') {
-    hiddenAt = Date.now();
-  } else if (document.visibilityState === 'visible') {
-    if (hiddenAt !== null && (Date.now() - hiddenAt) > SESSION_TIMEOUT_MS) {
-      console.log('Rientro dopo più di 3s: reset sessione in corso...');
-      resetSessionAndRelogin();
-    }
-    hiddenAt = null;
-  }
-});
-
-// Gestione rientro via "back/forward cache" su mobile
-window.addEventListener('pageshow', (event) => {
-  if (event.persisted) {
-    console.log('Pagina ripristinata da cache (pageshow persisted): reset sessione.');
-    resetSessionAndRelogin();
-  }
-});
-
-function resetSessionAndRelogin() {
-  // Revoca e pulisce il token corrente
-  const token = gapi.client?.getToken();
-  if (token) {
-    try { google.accounts.oauth2.revoke(token.access_token); } catch(e) {}
-    gapi.client.setToken('');
-  }
-
-  // Reset UI
-  const appContainer = document.getElementById('app-container');
-  if (appContainer && !appContainer.classList.contains('hidden')) {
-    appContainer.classList.add('hidden');
-  }
-  const elems = ['signout_button', 'search-container'];
-  elems.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.classList.add('hidden');
-  });
-  const searchInput = document.getElementById('search-input');
-  if (searchInput) searchInput.value = '';
-
-  // Mostra messaggio di rientro
-  let msg = document.getElementById('autologin-msg');
-  if (!msg) {
-    msg = document.createElement('p');
-    msg.id = 'autologin-msg';
-    msg.style.cssText = 'text-align:center; color:#6c757d; font-size:14px; margin-top:30px;';
-    document.body.appendChild(msg);
-  }
-  msg.textContent = '🔄 Sessione scaduta, rientro in corso...';
-
-  // Nascondi il pulsante mentre tentiamo il re-login silenzioso
-  const btn = document.getElementById('authorize_button');
-  if (btn) btn.style.display = 'none';
-
-  // Se GAPI e GIS sono già pronti, tenta subito il re-login
-  if (gapiInited && gisInited) {
-    tryAutoLogin();
-  } else {
-    // Altrimenti attendi che siano pronti (maybeEnableButtons se ne occuperà)
-    localStorage.setItem('mailcleaner_autologin', 'true');
-  }
-}
-
 // Variabili per Menu Contestuale e Ricerca
 let currentMenuMessageId = null;
 let currentMenuSender = null;
 let selectedFolders = []; 
 let searchTimeout = null; // Timer per la ricerca dinamica
-
-
-// --- PULIZIA AL RICARICAMENTO ---
-// Se l'utente ricarica la pagina (F5, location.reload, watchdog) → stato completamente vergine.
-(async function wipeOnReload() {
-  const navEntry = performance.getEntriesByType('navigation')[0];
-  const isReload = navEntry && navEntry.type === 'reload';
-
-  if (isReload) {
-    console.log('Ricaricamento rilevato: azzero tutto.');
-
-    // 1. Cache API di rete
-    if ('caches' in window) {
-      const names = await caches.keys();
-      await Promise.all(names.map(n => caches.delete(n)));
-    }
-
-    // 2. localStorage e sessionStorage completamente svuotati
-    localStorage.clear();
-    sessionStorage.clear();
-    localStorage.clear();
-
-    console.log('Pulizia completata. Partenza come primo accesso.');
-  }
-})();
-// --- WATCHDOG: se il pulsante resta su "Caricamento..." per più di 3s, ricarica la pagina ---
-const LOADING_WATCHDOG_MS = 3000;
-const _loadingWatchdog = setTimeout(() => {
-  const btnText = document.getElementById('auth_button_text');
-  const isStillLoading = btnText && btnText.innerText.includes('Caricamento');
-  if (isStillLoading) {
-    console.warn('Watchdog: pulsante bloccato su "Caricamento..." da più di 3s. Ricarico la pagina.');
-    location.reload();
-  }
-}, LOADING_WATCHDOG_MS);
-
-// Annulla il watchdog non appena i due script Google sono pronti
-function _cancelLoadingWatchdog() {
-  clearTimeout(_loadingWatchdog);
-}
 
 // --- INIZIALIZZAZIONE ---
 function gapiLoaded() {
@@ -145,9 +36,6 @@ function gisLoaded() {
 
 function maybeEnableButtons() {
   if (gapiInited && gisInited) {
-    // Gli script Google sono pronti: il watchdog non serve più
-    _cancelLoadingWatchdog();
-
     // Se l'utente ha già fatto accesso in precedenza, proviamo il login silenzioso
     if (localStorage.getItem('mailcleaner_autologin') === 'true') {
       tryAutoLogin();
@@ -219,32 +107,8 @@ function tryAutoLogin() {
 
 // --- LOGIN / LOGOUT ---
 
-// Pulisce tutte le cache del browser relative a questa app
-async function clearAppCaches() {
-  try {
-    // 1. Cache API (fetch/network cache)
-    if ('caches' in window) {
-      const cacheNames = await caches.keys();
-      await Promise.all(cacheNames.map(name => caches.delete(name)));
-      console.log(`Cache API: eliminate ${cacheNames.length} cache.`);
-    }
-
-    // 2. sessionStorage e localStorage (il flag autologin viene impostato subito dopo da onLoginSuccess)
-    sessionStorage.clear();
-    localStorage.clear();
-
-
-    console.log('Cache app pulite con successo.');
-  } catch (e) {
-    console.warn('Errore durante la pulizia delle cache:', e);
-  }
-}
-
 // Logica comune eseguita dopo ogni login riuscito (manuale o automatico)
-async function onLoginSuccess() {
-  // Pulisci le cache vecchie prima di caricare qualsiasi dato
-  await clearAppCaches();
-
+function onLoginSuccess() {
   localStorage.setItem('mailcleaner_autologin', 'true');
 
   document.getElementById('authorize_button').style.display = 'none';
@@ -252,9 +116,184 @@ async function onLoginSuccess() {
   document.getElementById('app-container').classList.remove('hidden');
   document.getElementById('search-container').classList.remove('hidden');
 
+  // Mostra la scansione iniziale della casella
+  scanMailbox();
+}
+
+// --- SCANSIONE INIZIALE DELLA CASELLA ---
+async function scanMailbox() {
+  // Crea e mostra il modale di scansione
+  const overlay = document.createElement('div');
+  overlay.id = 'scan-overlay';
+  overlay.innerHTML = `
+    <div id="scan-modal">
+      <div id="scan-header">
+        <span id="scan-icon">🧹</span>
+        <h2 id="scan-title">Analisi casella in corso...</h2>
+        <p id="scan-subtitle">Sto contando tutte le tue email, attendi un momento.</p>
+      </div>
+
+      <div id="scan-progress-wrap">
+        <div id="scan-progress-bar-track">
+          <div id="scan-progress-bar-fill"></div>
+        </div>
+        <div id="scan-progress-label">0 / 0 cartelle analizzate</div>
+      </div>
+
+      <div id="scan-current-label">🔍 Preparazione...</div>
+
+      <div id="scan-results" class="hidden">
+        <div id="scan-summary-cards"></div>
+        <div id="scan-table-wrap">
+          <table id="scan-table">
+            <thead>
+              <tr>
+                <th>Cartella</th>
+                <th>Email totali</th>
+                <th>Non lette</th>
+              </tr>
+            </thead>
+            <tbody id="scan-table-body"></tbody>
+          </table>
+        </div>
+        <button id="scan-close-btn" onclick="closeScanOverlay()">📥 Vai alla Inbox</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  // Forza il reflow per l'animazione
+  requestAnimationFrame(() => overlay.classList.add('visible'));
+
+  try {
+    // 1. Recupera tutti i label (inclusi quelli di sistema)
+    const labelsResp = await gapi.client.gmail.users.labels.list({ userId: 'me' });
+    const allLabels = labelsResp.result.labels || [];
+
+    // Filtriamo i label di sistema più rilevanti + tutti quelli utente
+    const SYSTEM_LABELS_TO_SHOW = ['INBOX', 'SENT', 'DRAFT', 'SPAM', 'TRASH'];
+    const systemLabels = allLabels.filter(l => SYSTEM_LABELS_TO_SHOW.includes(l.id));
+    const userLabels = allLabels.filter(l => l.type === 'user').sort((a, b) => a.name.localeCompare(b.name));
+    const labelsToScan = [...systemLabels, ...userLabels];
+
+    const total = labelsToScan.length;
+    const fill = document.getElementById('scan-progress-bar-fill');
+    const progressLabel = document.getElementById('scan-progress-label');
+    const currentLabel = document.getElementById('scan-current-label');
+
+    let grandTotal = 0;
+    let grandUnread = 0;
+    const rows = [];
+
+    // 2. Scansiona ogni label
+    for (let i = 0; i < labelsToScan.length; i++) {
+      const label = labelsToScan[i];
+      const percent = Math.round(((i) / total) * 100);
+
+      fill.style.width = percent + '%';
+      progressLabel.textContent = `${i} / ${total} cartelle analizzate`;
+      currentLabel.textContent = `🔍 Analisi: ${label.name || label.id}`;
+
+      try {
+        const detail = await gapi.client.gmail.users.labels.get({ userId: 'me', id: label.id });
+        const d = detail.result;
+        const msgTotal = d.messagesTotal || 0;
+        const msgUnread = d.messagesUnread || 0;
+
+        // Non sommare Trash/Spam al totale principale
+        const skipFromGrand = ['SPAM', 'TRASH'].includes(label.id);
+        if (!skipFromGrand) {
+          grandTotal += msgTotal;
+          grandUnread += msgUnread;
+        }
+
+        rows.push({
+          name: label.name || label.id,
+          isSystem: SYSTEM_LABELS_TO_SHOW.includes(label.id),
+          id: label.id,
+          total: msgTotal,
+          unread: msgUnread
+        });
+      } catch (e) {
+        // Ignora errori su singoli label
+      }
+    }
+
+    // 3. Aggiorna barra al 100%
+    fill.style.width = '100%';
+    progressLabel.textContent = `${total} / ${total} cartelle analizzate ✅`;
+    currentLabel.textContent = '✅ Scansione completata!';
+
+    // 4. Mostra i risultati
+    await new Promise(r => setTimeout(r, 400)); // piccola pausa estetica
+
+    document.getElementById('scan-title').textContent = '📊 Riepilogo casella';
+    document.getElementById('scan-subtitle').textContent = 'Ecco una panoramica dettagliata di tutte le tue cartelle.';
+    document.getElementById('scan-progress-wrap').classList.add('hidden');
+
+    // Summary cards
+    const inboxRow = rows.find(r => r.id === 'INBOX');
+    const trashRow = rows.find(r => r.id === 'TRASH');
+    const spamRow = rows.find(r => r.id === 'SPAM');
+    const cards = [
+      { icon: '📨', label: 'Email totali<br><small>(escluse Cestino/Spam)</small>', value: grandTotal.toLocaleString('it-IT') },
+      { icon: '🔴', label: 'Non lette', value: grandUnread.toLocaleString('it-IT') },
+      { icon: '📥', label: 'In arrivo', value: (inboxRow?.total || 0).toLocaleString('it-IT') },
+      { icon: '🗑️', label: 'Nel Cestino', value: (trashRow?.total || 0).toLocaleString('it-IT') },
+    ];
+
+    document.getElementById('scan-summary-cards').innerHTML = cards.map(c => `
+      <div class="scan-card">
+        <div class="scan-card-icon">${c.icon}</div>
+        <div class="scan-card-value">${c.value}</div>
+        <div class="scan-card-label">${c.label}</div>
+      </div>
+    `).join('');
+
+    // Tabella dettaglio
+    const tbody = document.getElementById('scan-table-body');
+    // Ordina: prima le cartelle di sistema, poi per totale decrescente
+    rows.sort((a, b) => {
+      if (a.isSystem && !b.isSystem) return -1;
+      if (!a.isSystem && b.isSystem) return 1;
+      return b.total - a.total;
+    });
+
+    tbody.innerHTML = rows.map(r => {
+      const isHigh = r.unread > 0;
+      return `
+        <tr class="${isHigh ? 'row-has-unread' : ''}">
+          <td>${r.isSystem ? systemIcon(r.id) : '📁'} ${r.name}</td>
+          <td>${r.total.toLocaleString('it-IT')}</td>
+          <td>${r.unread > 0 ? `<strong class="unread-badge">${r.unread.toLocaleString('it-IT')}</strong>` : '—'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    document.getElementById('scan-results').classList.remove('hidden');
+
+  } catch (err) {
+    console.error('Scansione fallita:', err);
+    closeScanOverlay();
+    loadLabels();
+    listEmails();
+  }
+}
+
+function systemIcon(id) {
+  const map = { INBOX: '📥', SENT: '📤', DRAFT: '📝', SPAM: '⚠️', TRASH: '🗑️' };
+  return map[id] || '📂';
+}
+
+function closeScanOverlay() {
+  const overlay = document.getElementById('scan-overlay');
+  if (overlay) {
+    overlay.classList.remove('visible');
+    setTimeout(() => overlay.remove(), 350);
+  }
   loadLabels();
   listEmails();
 }
+window.closeScanOverlay = closeScanOverlay;
 
 function handleAuthClick() {
   tokenClient.callback = async (resp) => {
