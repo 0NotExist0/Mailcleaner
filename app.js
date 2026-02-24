@@ -82,6 +82,22 @@ let currentMenuSender = null;
 let selectedFolders = []; 
 let searchTimeout = null; // Timer per la ricerca dinamica
 
+// --- WATCHDOG: se il pulsante resta su "Caricamento..." per più di 3s, ricarica la pagina ---
+const LOADING_WATCHDOG_MS = 3000;
+const _loadingWatchdog = setTimeout(() => {
+  const btnText = document.getElementById('auth_button_text');
+  const isStillLoading = btnText && btnText.innerText.includes('Caricamento');
+  if (isStillLoading) {
+    console.warn('Watchdog: pulsante bloccato su "Caricamento..." da più di 3s. Ricarico la pagina.');
+    location.reload();
+  }
+}, LOADING_WATCHDOG_MS);
+
+// Annulla il watchdog non appena i due script Google sono pronti
+function _cancelLoadingWatchdog() {
+  clearTimeout(_loadingWatchdog);
+}
+
 // --- INIZIALIZZAZIONE ---
 function gapiLoaded() {
   gapi.load('client', initializeGapiClient);
@@ -105,6 +121,9 @@ function gisLoaded() {
 
 function maybeEnableButtons() {
   if (gapiInited && gisInited) {
+    // Gli script Google sono pronti: il watchdog non serve più
+    _cancelLoadingWatchdog();
+
     // Se l'utente ha già fatto accesso in precedenza, proviamo il login silenzioso
     if (localStorage.getItem('mailcleaner_autologin') === 'true') {
       tryAutoLogin();
