@@ -7,6 +7,75 @@ let tokenClient;
 let gapiInited = false;
 let gisInited = false;
 
+// --- GESTIONE RIENTRO CON RESET SESSIONE ---
+const SESSION_TIMEOUT_MS = 3000; // 3 secondi
+let hiddenAt = null;
+
+// Quando la pagina viene nascosta (cambio tab, blocco schermo, minimize), salviamo il timestamp
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    hiddenAt = Date.now();
+  } else if (document.visibilityState === 'visible') {
+    if (hiddenAt !== null && (Date.now() - hiddenAt) > SESSION_TIMEOUT_MS) {
+      console.log('Rientro dopo più di 3s: reset sessione in corso...');
+      resetSessionAndRelogin();
+    }
+    hiddenAt = null;
+  }
+});
+
+// Gestione rientro via "back/forward cache" su mobile
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) {
+    console.log('Pagina ripristinata da cache (pageshow persisted): reset sessione.');
+    resetSessionAndRelogin();
+  }
+});
+
+function resetSessionAndRelogin() {
+  // Revoca e pulisce il token corrente
+  const token = gapi.client?.getToken();
+  if (token) {
+    try { google.accounts.oauth2.revoke(token.access_token); } catch(e) {}
+    gapi.client.setToken('');
+  }
+
+  // Reset UI
+  const appContainer = document.getElementById('app-container');
+  if (appContainer && !appContainer.classList.contains('hidden')) {
+    appContainer.classList.add('hidden');
+  }
+  const elems = ['signout_button', 'search-container'];
+  elems.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  });
+  const searchInput = document.getElementById('search-input');
+  if (searchInput) searchInput.value = '';
+
+  // Mostra messaggio di rientro
+  let msg = document.getElementById('autologin-msg');
+  if (!msg) {
+    msg = document.createElement('p');
+    msg.id = 'autologin-msg';
+    msg.style.cssText = 'text-align:center; color:#6c757d; font-size:14px; margin-top:30px;';
+    document.body.appendChild(msg);
+  }
+  msg.textContent = '🔄 Sessione scaduta, rientro in corso...';
+
+  // Nascondi il pulsante mentre tentiamo il re-login silenzioso
+  const btn = document.getElementById('authorize_button');
+  if (btn) btn.style.display = 'none';
+
+  // Se GAPI e GIS sono già pronti, tenta subito il re-login
+  if (gapiInited && gisInited) {
+    tryAutoLogin();
+  } else {
+    // Altrimenti attendi che siano pronti (maybeEnableButtons se ne occuperà)
+    localStorage.setItem('mailcleaner_autologin', 'true');
+  }
+}
+
 // Variabili per Menu Contestuale e Ricerca
 let currentMenuMessageId = null;
 let currentMenuSender = null;
