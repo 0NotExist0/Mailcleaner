@@ -195,8 +195,35 @@ function tryAutoLogin() {
 
 // --- LOGIN / LOGOUT ---
 
+// Pulisce tutte le cache del browser relative a questa app
+async function clearAppCaches() {
+  try {
+    // 1. Cache API (fetch/network cache)
+    if ('caches' in window) {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map(name => caches.delete(name)));
+      console.log(`Cache API: eliminate ${cacheNames.length} cache.`);
+    }
+
+    // 2. sessionStorage completo
+    sessionStorage.clear();
+
+    // 3. localStorage: rimuovi tutto tranne il flag di autologin
+    const autologin = localStorage.getItem('mailcleaner_autologin');
+    localStorage.clear();
+    if (autologin !== null) localStorage.setItem('mailcleaner_autologin', autologin);
+
+    console.log('Cache app pulite con successo.');
+  } catch (e) {
+    console.warn('Errore durante la pulizia delle cache:', e);
+  }
+}
+
 // Logica comune eseguita dopo ogni login riuscito (manuale o automatico)
-function onLoginSuccess() {
+async function onLoginSuccess() {
+  // Pulisci le cache vecchie prima di caricare qualsiasi dato
+  await clearAppCaches();
+
   localStorage.setItem('mailcleaner_autologin', 'true');
 
   document.getElementById('authorize_button').style.display = 'none';
