@@ -627,51 +627,152 @@ document.getElementById('menu-delete').addEventListener('click', () => {
 });
 
 document.getElementById('menu-group').addEventListener('click', () => {
-    if (currentMenuSender) { groupEmailsBySender(currentMenuSender); closeContextMenu(); }
+    if (currentMenuSender) {
+        closeContextMenu();
+        showGroupPickerDialog(currentMenuSender);
+    }
 });
 
 document.getElementById('menu-group-selected').addEventListener('click', () => {
     groupSelectedEmails(); closeContextMenu();
 });
 
-async function groupEmailsBySender(senderHeader) {
+// ── Dialogo scelta periodo/batch prima del raggruppamento ───────────────
+function showGroupPickerDialog(senderHeader) {
   const emailMatch = senderHeader.match(/<(.+)>/);
   const senderEmail = emailMatch ? emailMatch[1] : senderHeader.trim();
-  const cleanName  = senderEmail.split('@')[0].replace(/[^a-zA-Z0-9]/g, '_');
-  const labelName  = `Archivio_${cleanName}`;
+  const fromName = senderHeader.split('<')[0].trim().replace(/^"|"$/g,'') || senderEmail;
 
-  // ── Mostra pannello di avanzamento ──────────────────────────────────
-  showGroupProgress({
-    sender: senderEmail,
-    label:  labelName,
-    phase:  'search',
-    found:  0,
-    moved:  0,
-    total:  0
+  let overlay = document.getElementById('group-picker-overlay');
+  if (overlay) overlay.remove();
+
+  overlay = document.createElement('div');
+  overlay.id = 'group-picker-overlay';
+  overlay.innerHTML = `
+    <div id="group-picker-modal">
+      <button class="gp-picker-close" onclick="closeGroupPicker()" title="Annulla">✕</button>
+      <div class="gp-picker-icon">📁</div>
+      <h3 class="gp-picker-title">Raggruppa per mittente</h3>
+      <div class="gp-picker-sender" title="${senderEmail}">📧 ${escHtml(fromName)}<br><small>${escHtml(senderEmail)}</small></div>
+
+      <div class="gp-picker-section">
+        <div class="gp-picker-label">📅 Quanto indietro cercare?</div>
+        <div class="gp-picker-grid" id="gp-period-grid">
+          <button class="gp-opt gp-opt-period selected" data-val="">🌐 Tutte (dall'inizio)</button>
+          <button class="gp-opt gp-opt-period" data-val="newer_than:1y">📆 Ultimo anno</button>
+          <button class="gp-opt gp-opt-period" data-val="newer_than:6m">🗓️ Ultimi 6 mesi</button>
+          <button class="gp-opt gp-opt-period" data-val="newer_than:3m">📅 Ultimi 3 mesi</button>
+          <button class="gp-opt gp-opt-period" data-val="newer_than:1m">🗓️ Ultimo mese</button>
+          <button class="gp-opt gp-opt-period" data-val="newer_than:7d">📅 Ultima settimana</button>
+        </div>
+      </div>
+
+      <div class="gp-picker-section">
+        <div class="gp-picker-label">⚙️ Dimensione batch per spostamento</div>
+        <div class="gp-picker-grid" id="gp-batch-grid">
+          <button class="gp-opt gp-opt-batch selected" data-val="1000">🚀 1000 (massimo)</button>
+          <button class="gp-opt gp-opt-batch" data-val="500">⚡ 500 (veloce)</button>
+          <button class="gp-opt gp-opt-batch" data-val="100">🐇 100 (medio)</button>
+          <button class="gp-opt gp-opt-batch" data-val="25">🐢 25 (lento/sicuro)</button>
+        </div>
+      </div>
+
+      <div class="gp-picker-summary" id="gp-picker-summary">
+        Cercherà in <strong>tutta la casella</strong>, nessuna email esclusa.
+      </div>
+
+      <button class="gp-picker-go" id="gp-picker-go-btn" onclick="launchGroupFromPicker('${senderEmail}')">
+        📦 Avvia raggruppamento
+      </button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('gp-picker-visible'));
+
+  // Toggle selezione opzioni periodo
+  overlay.querySelectorAll('.gp-opt-period').forEach(btn => {
+    btn.addEventListener('click', () => {
+      overlay.querySelectorAll('.gp-opt-period').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      updatePickerSummary();
+    });
   });
 
+  // Toggle selezione opzioni batch
+  overlay.querySelectorAll('.gp-opt-batch').forEach(btn => {
+    btn.addEventListener('click', () => {
+      overlay.querySelectorAll('.gp-opt-batch').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    });
+  });
+
+  // Chiudi cliccando fuori dal modal
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeGroupPicker();
+  });
+}
+
+function updatePickerSummary() {
+  const periodBtn = document.querySelector('.gp-opt-period.selected');
+  const val = periodBtn?.dataset.val || '';
+  const summaryEl = document.getElementById('gp-picker-summary');
+  if (!summaryEl) return;
+  const map = {
+    '':              'Cercherà <strong>tutte le email</strong> dall'inizio della casella.',
+    'newer_than:1y': 'Cercherà solo le email dell'<strong>ultimo anno</strong>.',
+    'newer_than:6m': 'Cercherà solo le email degli <strong>ultimi 6 mesi</strong>.',
+    'newer_than:3m': 'Cercherà solo le email degli <strong>ultimi 3 mesi</strong>.',
+    'newer_than:1m': 'Cercherà solo le email dell'<strong>ultimo mese</strong>.',
+    'newer_than:7d': 'Cercherà solo le email dell'<strong>ultima settimana</strong>.',
+  };
+  summaryEl.innerHTML = map[val] || '';
+}
+
+function closeGroupPicker() {
+  const overlay = document.getElementById('group-picker-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('gp-picker-visible');
+  setTimeout(() => overlay.remove(), 300);
+}
+window.closeGroupPicker = closeGroupPicker;
+
+async function launchGroupFromPicker(senderEmail) {
+  const periodBtn = document.querySelector('.gp-opt-period.selected');
+  const batchBtn  = document.querySelector('.gp-opt-batch.selected');
+  const period    = periodBtn?.dataset.val || '';
+  const batchSize = parseInt(batchBtn?.dataset.val || '1000', 10);
+  closeGroupPicker();
+  await groupEmailsBySender(senderEmail, { period, batchSize });
+}
+window.launchGroupFromPicker = launchGroupFromPicker;
+
+async function groupEmailsBySender(senderEmail, opts = {}) {
+  const period    = opts.period    || '';
+  const batchSize = opts.batchSize || 1000;
+
+  const cleanName = senderEmail.split('@')[0].replace(/[^a-zA-Z0-9]/g, '_');
+  const labelName = `Archivio_${cleanName}`;
+
+  // Costruisci la query Gmail
+  let q = `from:${senderEmail} in:anywhere`;
+  if (period) q += ` ${period}`;
+
+  showGroupProgress({ sender: senderEmail, label: labelName, phase: 'search', found: 0, moved: 0, total: 0 });
+
   try {
-    // 1. Crea (o recupera) la cartella di destinazione
     const labelId = await getOrCreateLabel(labelName);
 
-    // 2. Raccoglie TUTTI gli ID con "in:anywhere" — nessuna cartella esclusa
-    //    (inbox, sent, spam, trash, cartelle personalizzate, ecc.)
-    let allIds   = [];
+    // Raccoglie TUTTI gli ID senza limite di pagine
+    let allIds    = [];
     let pageToken = undefined;
 
     do {
-      const params = {
-        userId:     'me',
-        q:          `from:${senderEmail} in:anywhere`,
-        maxResults: 500
-      };
+      const params = { userId: 'me', q, maxResults: 500 };
       if (pageToken) params.pageToken = pageToken;
 
-      const resp     = await gapi.client.gmail.users.messages.list(params);
-      const messages = resp.result.messages || [];
-      allIds.push(...messages.map(m => m.id));
+      const resp = await gapi.client.gmail.users.messages.list(params);
+      allIds.push(...(resp.result.messages || []).map(m => m.id));
       pageToken = resp.result.nextPageToken;
-
       updateGroupProgress({ phase: 'search', found: allIds.length });
 
     } while (pageToken);
@@ -680,17 +781,14 @@ async function groupEmailsBySender(senderHeader) {
 
     if (total === 0) {
       closeGroupProgress();
-      alert(`ℹ️ Nessuna email trovata da "${senderEmail}" in tutta la casella.`);
+      alert(`ℹ️ Nessuna email trovata da "${senderEmail}" con i criteri selezionati.`);
       return;
     }
 
-    // 3. Sposta in batch da 1000 (limite max API Gmail)
+    // Sposta in batch
     let moved = 0;
-    const CHUNK = 1000;
-
-    for (let i = 0; i < allIds.length; i += CHUNK) {
-      const chunk = allIds.slice(i, i + CHUNK);
-
+    for (let i = 0; i < allIds.length; i += batchSize) {
+      const chunk = allIds.slice(i, i + batchSize);
       await gapi.client.gmail.users.messages.batchModify({
         userId: 'me',
         resource: {
@@ -699,12 +797,10 @@ async function groupEmailsBySender(senderHeader) {
           removeLabelIds: ['INBOX', 'SPAM', 'TRASH']
         }
       });
-
       moved += chunk.length;
       updateGroupProgress({ phase: 'move', moved, total });
     }
 
-    // 4. Fine
     closeGroupProgress();
     alert(`✅ ${moved.toLocaleString('it-IT')} email di "${senderEmail}" spostate in "${labelName}".`);
     loadLabels();
