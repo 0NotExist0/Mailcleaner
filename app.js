@@ -718,12 +718,12 @@ function updatePickerSummary() {
   const summaryEl = document.getElementById('gp-picker-summary');
   if (!summaryEl) return;
   const map = {
-    '':              'Cercherà <strong>tutte le email</strong> dall'inizio della casella.',
-    'newer_than:1y': 'Cercherà solo le email dell'<strong>ultimo anno</strong>.',
-    'newer_than:6m': 'Cercherà solo le email degli <strong>ultimi 6 mesi</strong>.',
-    'newer_than:3m': 'Cercherà solo le email degli <strong>ultimi 3 mesi</strong>.',
-    'newer_than:1m': 'Cercherà solo le email dell'<strong>ultimo mese</strong>.',
-    'newer_than:7d': 'Cercherà solo le email dell'<strong>ultima settimana</strong>.',
+    '':              `Cercherà <strong>tutte le email</strong> dall'inizio della casella.`,
+    'newer_than:1y': `Cercherà solo le email dell'<strong>ultimo anno</strong>.`,
+    'newer_than:6m': `Cercherà solo le email degli <strong>ultimi 6 mesi</strong>.`,
+    'newer_than:3m': `Cercherà solo le email degli <strong>ultimi 3 mesi</strong>.`,
+    'newer_than:1m': `Cercherà solo le email dell'<strong>ultimo mese</strong>.`,
+    'newer_than:7d': `Cercherà solo le email dell'<strong>ultima settimana</strong>.`,
   };
   summaryEl.innerHTML = map[val] || '';
 }
