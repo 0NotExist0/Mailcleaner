@@ -238,6 +238,23 @@ button:hover { background-color: var(--primary-hover); }
 .btn-delete:hover { background-color: #c82333; }
 .btn-empty-folder { background-color: #dc3545; font-size: var(--font-xs); padding: 6px 10px; flex-shrink: 0; }
 
+/* Nuovo pulsante Elimina Gruppo */
+.btn-delete-folder {
+    background-color: transparent;
+    color: #dc3545;
+    border: 1px solid #dc3545;
+    font-size: var(--font-xs);
+    padding: 5px 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    transition: all 0.2s;
+    min-height: unset; /* sovrascrive il min-height globale dei button per renderlo compatto */
+}
+.btn-delete-folder:hover {
+    background-color: #dc3545;
+    color: white;
+}
+
 /* --- LISTA EMAIL --- */
 .email-item {
     background-color: #fff;
@@ -278,11 +295,7 @@ button:hover { background-color: var(--primary-hover); }
 
 /* =============================================
    MENU CONTESTUALE
-   Desktop  → tooltip posizionato (come prima)
-   Mobile   → bottom-sheet che sale dal basso
    ============================================= */
-
-/* Overlay per il bottom-sheet */
 #menu-overlay {
     display: none;
     position: fixed;
@@ -426,76 +439,55 @@ button:hover { background-color: var(--primary-hover); }
    ============================================= */
 @media (max-width: 700px) {
 
-    /* Padding ridotto sul body */
-    body {
-        padding: 12px 12px;
-    }
+    body { padding: 12px 12px; }
 
-    /* Header compatto */
     .header { gap: 10px; }
     .header-left { gap: 8px; }
     h1 { font-size: clamp(1.2rem, 5vw, 1.6rem); }
-    p { display: none; } /* sottotitolo nascosto su mobile, fa spazio */
+    p { display: none; }
 
-    /* Mostra il pulsante hamburger */
     .btn-hamburger { display: flex; align-items: center; justify-content: center; }
 
-    /* Campo di ricerca più compatto */
     #search-input { width: clamp(100px, 30vw, 160px); }
-
-    /* Pulsante Accedi/Esci più compatto */
     #authorize_button, #signout_button { padding: 8px 12px; font-size: 0.8rem; }
 
-    /* ---- SIDEBAR: pannello a scomparsa ---- */
     #sidebar {
-        /* Esce dallo scroll normale e diventa un drawer fisso */
         position: fixed;
         top: 0;
         left: 0;
-        height: 100dvh;       /* dvh funziona meglio di vh su mobile (barra indirizzi) */
+        height: 100dvh;
         width: var(--sidebar-width);
         max-height: 100dvh;
         border-radius: 0;
         z-index: 300;
         overflow-y: auto;
-        padding-top: 50px;    /* spazio per il pulsante chiudi */
-        transform: translateX(-110%); /* nascosta a sinistra */
+        padding-top: 50px;
+        transform: translateX(-110%);
         transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         box-shadow: none;
     }
 
-    /* Quando la sidebar è aperta */
     #sidebar.open {
         transform: translateX(0);
         box-shadow: 4px 0 20px rgba(0,0,0,0.25);
     }
 
-    /* Mostra pulsante chiudi (X) dentro la sidebar su mobile */
     .btn-close-sidebar { display: flex; align-items: center; justify-content: center; }
 
-    /* Il main content occupa tutto lo schermo */
     #main-content {
         flex: 1 1 100%;
         min-width: 0;
         width: 100%;
     }
 
-    /* Toolbar inline: titolo e bottone sulla stessa riga */
-    #main-toolbar {
-        flex-direction: row;
-        flex-wrap: wrap;
-        gap: 8px;
-    }
+    #main-toolbar { flex-direction: row; flex-wrap: wrap; gap: 8px; }
     #main-toolbar button { font-size: 0.78rem; padding: 8px 12px; }
 
-    /* Lista email: un po' più compatta ma comunque toccabile */
     .email-item { min-height: 62px; padding: 12px; }
     .email-item .btn-delete { padding: 10px 12px; font-size: 1rem; }
 
-    /* Pulsante "svuota" cartella: testo accorciato */
     .btn-empty-folder::after { content: ''; }
 
-    /* ---- BOTTOM SHEET: il menu contestuale su mobile ---- */
     #custom-menu.is-bottom-sheet {
         position: fixed !important;
         bottom: 0;
@@ -508,11 +500,9 @@ button:hover { background-color: var(--primary-hover); }
         box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
         min-width: unset;
         z-index: 999;
-        /* Animazione slide-up */
         animation: slideUp 0.25s ease-out forwards;
     }
 
-    /* Maniglia grafica del bottom-sheet */
     #menu-handle {
         display: block;
         width: 36px;
@@ -528,18 +518,13 @@ button:hover { background-color: var(--primary-hover); }
         min-height: 56px;
     }
 
-    /* Vista email su mobile: padding ridotto */
     #single-email-content { padding: 16px 12px; }
     #single-email-content h2 { font-size: 1rem; }
 
-    /* Cassetto fascicoli: adattato per mobile */
     .fascicolo { max-height: 160px; }
     .fascicolo-mail { min-height: 40px; font-size: 0.78rem; }
 }
 
-/* =============================================
-   TABLET (700px - 900px): sidebar più stretta
-   ============================================= */
 @media (min-width: 701px) and (max-width: 900px) {
     #sidebar {
         flex: 1 1 200px;
@@ -557,16 +542,13 @@ button:hover { background-color: var(--primary-hover); }
    ============================================= */
 .btn-auth-fixed {
     position: fixed;
-    /* AGGIUNTO IL FALLBACK STATICO */
     bottom: 24px;
     bottom: calc(24px + env(safe-area-inset-bottom, 0px));
     right: 20px;
     z-index: 9999;
-
     display: flex;
     align-items: center;
     gap: 10px;
-
     background: white;
     color: #3c4043;
     border: 1px solid #dadce0;
@@ -577,10 +559,8 @@ button:hover { background-color: var(--primary-hover); }
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     cursor: pointer;
     min-height: 52px;
-
     box-shadow: 0 4px 16px rgba(0,0,0,0.18), 0 1px 4px rgba(0,0,0,0.10);
     transition: box-shadow 0.2s, transform 0.15s, background 0.15s;
-
     animation: authBtnAppear 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
 }
 
@@ -615,10 +595,8 @@ button:hover { background-color: var(--primary-hover); }
     to   { opacity: 1; transform: translateY(0)    scale(1);   }
 }
 
-/* Mobile medio (<=700px) */
 @media (max-width: 700px) {
     .btn-auth-fixed {
-        /* AGGIUNTO IL FALLBACK STATICO */
         bottom: 20px;
         bottom: calc(20px + env(safe-area-inset-bottom, 0px));
         right: 12px;
@@ -632,10 +610,8 @@ button:hover { background-color: var(--primary-hover); }
     .btn-auth-icon svg { width: 18px; height: 18px; }
 }
 
-/* Schermi molto piccoli tipo Galaxy S9 (<=380px) */
 @media (max-width: 380px) {
     .btn-auth-fixed {
-        /* AGGIUNTO IL FALLBACK STATICO */
         bottom: 16px;
         bottom: calc(16px + env(safe-area-inset-bottom, 0px));
         left: 8px;
