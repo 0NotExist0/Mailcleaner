@@ -116,184 +116,10 @@ function onLoginSuccess() {
   document.getElementById('app-container').classList.remove('hidden');
   document.getElementById('search-container').classList.remove('hidden');
 
-  // Mostra la scansione iniziale della casella
-  scanMailbox();
-}
-
-// --- SCANSIONE INIZIALE DELLA CASELLA ---
-async function scanMailbox() {
-  // Crea e mostra il modale di scansione
-  const overlay = document.createElement('div');
-  overlay.id = 'scan-overlay';
-  overlay.innerHTML = `
-    <div id="scan-modal">
-      <div id="scan-header">
-        <span id="scan-icon">🧹</span>
-        <h2 id="scan-title">Analisi casella in corso...</h2>
-        <p id="scan-subtitle">Sto contando tutte le tue email, attendi un momento.</p>
-      </div>
-
-      <div id="scan-progress-wrap">
-        <div id="scan-progress-bar-track">
-          <div id="scan-progress-bar-fill"></div>
-        </div>
-        <div id="scan-progress-label">0 / 0 cartelle analizzate</div>
-      </div>
-
-      <div id="scan-current-label">🔍 Preparazione...</div>
-
-      <div id="scan-results" class="hidden">
-        <div id="scan-summary-cards"></div>
-        <div id="scan-table-wrap">
-          <table id="scan-table">
-            <thead>
-              <tr>
-                <th>Cartella</th>
-                <th>Email totali</th>
-                <th>Non lette</th>
-              </tr>
-            </thead>
-            <tbody id="scan-table-body"></tbody>
-          </table>
-        </div>
-        <button id="scan-close-btn" onclick="closeScanOverlay()">📥 Vai alla Inbox</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(overlay);
-  // Forza il reflow per l'animazione
-  requestAnimationFrame(() => overlay.classList.add('visible'));
-
-  try {
-    // 1. Recupera tutti i label (inclusi quelli di sistema)
-    const labelsResp = await gapi.client.gmail.users.labels.list({ userId: 'me' });
-    const allLabels = labelsResp.result.labels || [];
-
-    // Filtriamo i label di sistema più rilevanti + tutti quelli utente
-    const SYSTEM_LABELS_TO_SHOW = ['INBOX', 'SENT', 'DRAFT', 'SPAM', 'TRASH'];
-    const systemLabels = allLabels.filter(l => SYSTEM_LABELS_TO_SHOW.includes(l.id));
-    const userLabels = allLabels.filter(l => l.type === 'user').sort((a, b) => a.name.localeCompare(b.name));
-    const labelsToScan = [...systemLabels, ...userLabels];
-
-    const total = labelsToScan.length;
-    const fill = document.getElementById('scan-progress-bar-fill');
-    const progressLabel = document.getElementById('scan-progress-label');
-    const currentLabel = document.getElementById('scan-current-label');
-
-    let grandTotal = 0;
-    let grandUnread = 0;
-    const rows = [];
-
-    // 2. Scansiona ogni label
-    for (let i = 0; i < labelsToScan.length; i++) {
-      const label = labelsToScan[i];
-      const percent = Math.round(((i) / total) * 100);
-
-      fill.style.width = percent + '%';
-      progressLabel.textContent = `${i} / ${total} cartelle analizzate`;
-      currentLabel.textContent = `🔍 Analisi: ${label.name || label.id}`;
-
-      try {
-        const detail = await gapi.client.gmail.users.labels.get({ userId: 'me', id: label.id });
-        const d = detail.result;
-        const msgTotal = d.messagesTotal || 0;
-        const msgUnread = d.messagesUnread || 0;
-
-        // Non sommare Trash/Spam al totale principale
-        const skipFromGrand = ['SPAM', 'TRASH'].includes(label.id);
-        if (!skipFromGrand) {
-          grandTotal += msgTotal;
-          grandUnread += msgUnread;
-        }
-
-        rows.push({
-          name: label.name || label.id,
-          isSystem: SYSTEM_LABELS_TO_SHOW.includes(label.id),
-          id: label.id,
-          total: msgTotal,
-          unread: msgUnread
-        });
-      } catch (e) {
-        // Ignora errori su singoli label
-      }
-    }
-
-    // 3. Aggiorna barra al 100%
-    fill.style.width = '100%';
-    progressLabel.textContent = `${total} / ${total} cartelle analizzate ✅`;
-    currentLabel.textContent = '✅ Scansione completata!';
-
-    // 4. Mostra i risultati
-    await new Promise(r => setTimeout(r, 400)); // piccola pausa estetica
-
-    document.getElementById('scan-title').textContent = '📊 Riepilogo casella';
-    document.getElementById('scan-subtitle').textContent = 'Ecco una panoramica dettagliata di tutte le tue cartelle.';
-    document.getElementById('scan-progress-wrap').classList.add('hidden');
-
-    // Summary cards
-    const inboxRow = rows.find(r => r.id === 'INBOX');
-    const trashRow = rows.find(r => r.id === 'TRASH');
-    const spamRow = rows.find(r => r.id === 'SPAM');
-    const cards = [
-      { icon: '📨', label: 'Email totali<br><small>(escluse Cestino/Spam)</small>', value: grandTotal.toLocaleString('it-IT') },
-      { icon: '🔴', label: 'Non lette', value: grandUnread.toLocaleString('it-IT') },
-      { icon: '📥', label: 'In arrivo', value: (inboxRow?.total || 0).toLocaleString('it-IT') },
-      { icon: '🗑️', label: 'Nel Cestino', value: (trashRow?.total || 0).toLocaleString('it-IT') },
-    ];
-
-    document.getElementById('scan-summary-cards').innerHTML = cards.map(c => `
-      <div class="scan-card">
-        <div class="scan-card-icon">${c.icon}</div>
-        <div class="scan-card-value">${c.value}</div>
-        <div class="scan-card-label">${c.label}</div>
-      </div>
-    `).join('');
-
-    // Tabella dettaglio
-    const tbody = document.getElementById('scan-table-body');
-    // Ordina: prima le cartelle di sistema, poi per totale decrescente
-    rows.sort((a, b) => {
-      if (a.isSystem && !b.isSystem) return -1;
-      if (!a.isSystem && b.isSystem) return 1;
-      return b.total - a.total;
-    });
-
-    tbody.innerHTML = rows.map(r => {
-      const isHigh = r.unread > 0;
-      return `
-        <tr class="${isHigh ? 'row-has-unread' : ''}">
-          <td>${r.isSystem ? systemIcon(r.id) : '📁'} ${r.name}</td>
-          <td>${r.total.toLocaleString('it-IT')}</td>
-          <td>${r.unread > 0 ? `<strong class="unread-badge">${r.unread.toLocaleString('it-IT')}</strong>` : '—'}</td>
-        </tr>
-      `;
-    }).join('');
-
-    document.getElementById('scan-results').classList.remove('hidden');
-
-  } catch (err) {
-    console.error('Scansione fallita:', err);
-    closeScanOverlay();
-    loadLabels();
-    listEmails();
-  }
-}
-
-function systemIcon(id) {
-  const map = { INBOX: '📥', SENT: '📤', DRAFT: '📝', SPAM: '⚠️', TRASH: '🗑️' };
-  return map[id] || '📂';
-}
-
-function closeScanOverlay() {
-  const overlay = document.getElementById('scan-overlay');
-  if (overlay) {
-    overlay.classList.remove('visible');
-    setTimeout(() => overlay.remove(), 350);
-  }
   loadLabels();
   listEmails();
+  startScanPanel();
 }
-window.closeScanOverlay = closeScanOverlay;
 
 function handleAuthClick() {
   tokenClient.callback = async (resp) => {
@@ -1001,3 +827,150 @@ window.closeEmail = function() {
         listContainer.classList.remove('animate-fade-in');
     }, 300);
 };
+
+// ─────────────────────────────────────────────
+// PANNELLO SCANSIONE (colonna destra, fisso)
+// ─────────────────────────────────────────────
+let scanPanelOpen = true;
+
+function startScanPanel() {
+  const panel = document.getElementById('scan-panel');
+  panel.classList.remove('hidden');
+  document.getElementById('sp-progress-wrap').style.display = 'flex';
+  document.getElementById('sp-fill').style.width = '0%';
+  document.getElementById('sp-progress-text').textContent = 'Avvio scansione...';
+  document.getElementById('sp-stats').textContent = '';
+  document.getElementById('sp-list').innerHTML = '<div class="sp-loading">⏳ Scansione in corso...</div>';
+  runScanPanel();
+}
+
+async function runScanPanel() {
+  const fill        = document.getElementById('sp-fill');
+  const progressTxt = document.getElementById('sp-progress-text');
+  const statsTxt    = document.getElementById('sp-stats');
+  const list        = document.getElementById('sp-list');
+
+  try {
+    // Conteggio stimato
+    const labelInfo = await gapi.client.gmail.users.labels.get({ userId: 'me', id: 'INBOX' });
+    const estimatedTotal = labelInfo.result.messagesTotal || 0;
+    statsTxt.textContent = `~${estimatedTotal.toLocaleString('it-IT')} email in Inbox`;
+
+    // Raccolta ID messaggi (max 3 pagine × 500 = 1500)
+    let allMessageIds = [];
+    let pageToken = null;
+    let pageNum = 0;
+    do {
+      const resp = await gapi.client.gmail.users.messages.list({
+        userId: 'me', labelIds: ['INBOX'], maxResults: 500,
+        pageToken: pageToken || undefined
+      });
+      allMessageIds.push(...(resp.result.messages || []));
+      pageToken = resp.result.nextPageToken;
+      pageNum++;
+      if (pageNum >= 3) break;
+    } while (pageToken);
+
+    const total = allMessageIds.length;
+    list.innerHTML = '';
+
+    // Carica metadata in batch da 10
+    const BATCH = 10;
+    let loaded = 0;
+
+    for (let i = 0; i < total; i += BATCH) {
+      const batch = allMessageIds.slice(i, i + BATCH);
+      const results = await Promise.all(batch.map(m =>
+        gapi.client.gmail.users.messages.get({
+          userId: 'me', id: m.id, format: 'metadata',
+          metadataHeaders: ['Subject', 'From', 'Date']
+        })
+      ));
+
+      results.forEach((res, idx) => {
+        const msg    = res.result;
+        const msgId  = batch[idx].id;
+        const hdrs   = msg.payload?.headers || [];
+        const from   = hdrs.find(h => h.name === 'From')?.value    || 'Sconosciuto';
+        const subj   = hdrs.find(h => h.name === 'Subject')?.value || '(Nessun oggetto)';
+        const date   = hdrs.find(h => h.name === 'Date')?.value    || '';
+        const isUnread = (msg.labelIds || []).includes('UNREAD');
+        const fromName = from.split('<')[0].trim().replace(/^"|"$/g, '') || from;
+        const dateShort = formatScanDate(date);
+
+        const row = document.createElement('div');
+        row.className = `sp-row${isUnread ? ' sp-unread' : ''}`;
+        row.title = `Da: ${from}\nOggetto: ${subj}\nData: ${date}`;
+        row.innerHTML = `
+          <div class="sp-row-left">
+            <span class="sp-dot${isUnread ? '' : ' sp-dot-read'}"></span>
+          </div>
+          <div class="sp-row-body">
+            <div class="sp-row-top">
+              <span class="sp-from">${escHtml(fromName)}</span>
+              <span class="sp-date">${dateShort}</span>
+            </div>
+            <div class="sp-subj">${escHtml(subj)}</div>
+          </div>
+        `;
+        row.addEventListener('click', () => {
+          document.querySelectorAll('.sp-row.sp-selected').forEach(r => r.classList.remove('sp-selected'));
+          row.classList.add('sp-selected');
+          row.classList.remove('sp-unread');
+          const dot = row.querySelector('.sp-dot');
+          if (dot) dot.classList.add('sp-dot-read');
+          openEmail(msgId);
+          if (window.matchMedia('(max-width: 900px)').matches) toggleScanPanel(false);
+        });
+        list.appendChild(row);
+      });
+
+      loaded += batch.length;
+      const pct = Math.round((loaded / total) * 100);
+      fill.style.width = pct + '%';
+      progressTxt.textContent = `${loaded.toLocaleString('it-IT')} / ${total.toLocaleString('it-IT')} email`;
+    }
+
+    fill.style.width = '100%';
+    progressTxt.textContent = `✅ ${total.toLocaleString('it-IT')} email caricate`;
+    statsTxt.textContent = `Inbox · ${total.toLocaleString('it-IT')} email`;
+    setTimeout(() => { document.getElementById('sp-progress-wrap').style.display = 'none'; }, 2200);
+
+  } catch (err) {
+    console.error('Errore scansione:', err);
+    list.innerHTML = '<div class="sp-loading" style="color:#dc3545">⚠️ Errore durante la scansione.</div>';
+    document.getElementById('sp-progress-wrap').style.display = 'none';
+  }
+}
+
+function toggleScanPanel(forceState) {
+  const panel = document.getElementById('scan-panel');
+  const btn   = document.getElementById('sp-toggle-btn');
+  scanPanelOpen = (forceState !== undefined) ? forceState : !scanPanelOpen;
+  if (scanPanelOpen) {
+    panel.classList.remove('sp-collapsed');
+    btn.textContent = '✕';
+    btn.title = 'Chiudi pannello scansione';
+  } else {
+    panel.classList.add('sp-collapsed');
+    btn.textContent = '📡';
+    btn.title = 'Apri pannello scansione';
+  }
+}
+window.toggleScanPanel = toggleScanPanel;
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function formatScanDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d)) return '';
+  const now = new Date();
+  const diff = now - d;
+  const day = 86400000;
+  if (diff < day && d.getDate() === now.getDate()) return d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+  if (diff < 7 * day) return d.toLocaleDateString('it-IT', { weekday: 'short' });
+  return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
+}
