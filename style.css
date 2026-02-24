@@ -825,3 +825,90 @@ button:hover { background-color: var(--primary-hover); }
     #scan-panel { height: 280px; }
     #sp-list { height: 220px; }
 }
+
+/* ═══════════════════════════════════════════════
+   OVERLAY AVANZAMENTO RAGGRUPPAMENTO MITTENTE
+   ═══════════════════════════════════════════════ */
+#group-progress-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,20,40,0.72);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    z-index: 11000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+#group-progress-overlay.gp-visible { opacity: 1; }
+
+#group-progress-modal {
+    background: #fff;
+    border-radius: 18px;
+    padding: 32px 28px 28px;
+    width: 100%;
+    max-width: 460px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    text-align: center;
+    transform: translateY(16px);
+    transition: transform 0.3s cubic-bezier(0.175,0.885,0.32,1.275);
+}
+#group-progress-overlay.gp-visible #group-progress-modal {
+    transform: translateY(0);
+}
+
+.gp-icon   { font-size: 2.4rem; }
+.gp-title  { margin: 0; font-size: 1.15rem; color: #2c3e50; font-weight: 700; }
+.gp-sender {
+    font-size: 0.82rem; color: #007bff; font-weight: 600;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.gp-label  { font-size: 0.82rem; color: #495057; }
+
+.gp-phase  { font-size: 0.88rem; color: #495057; min-height: 1.4em; }
+
+/* Barra avanzamento */
+.gp-bar-track {
+    width: 100%;
+    height: 10px;
+    background: #e9ecef;
+    border-radius: 99px;
+    overflow: hidden;
+    position: relative;
+}
+.gp-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #007bff, #00c6ff);
+    border-radius: 99px;
+    transition: width 0.35s ease;
+}
+
+/* Animazione indeterminata durante la ricerca */
+.gp-bar-indeterminate {
+    width: 40% !important;
+    animation: gp-slide 1.4s ease-in-out infinite;
+}
+@keyframes gp-slide {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(300%); }
+}
+
+.gp-counters {
+    font-size: 0.85rem; color: #343a40; font-weight: 600; min-height: 1.3em;
+}
+.gp-note {
+    font-size: 0.72rem; color: #adb5bd; margin-top: 4px;
+}
+
+@media (max-width: 480px) {
+    #group-progress-modal { padding: 24px 18px 20px; }
+    .gp-title { font-size: 1rem; }
+}
