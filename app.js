@@ -189,9 +189,13 @@ async function loadLabels() {
                 li.classList.add('selected-folder');
             }
             
+            // AGGIUNTO IL PULSANTE DI ELIMINAZIONE GRUPPO
             li.innerHTML = `
                 <span class="label-name" title="${label.name}">📁 ${label.name}</span>
-                <button class="btn-empty-folder" onclick="event.stopPropagation(); emptyLabel('${label.id}', '${label.name.replace(/'/g, "\\'")}')">Svuota</button>
+                <div style="display: flex; gap: 5px; align-items: center;">
+                    <button class="btn-empty-folder" onclick="event.stopPropagation(); emptyLabel('${label.id}', '${label.name.replace(/'/g, "\\'")}')" title="Svuota cartella">Svuota</button>
+                    <button class="btn-delete-folder" onclick="event.stopPropagation(); deleteLabel('${label.id}', '${label.name.replace(/'/g, "\\'")}')" title="Elimina questo gruppo">🗑️</button>
+                </div>
             `;
 
             li.addEventListener('click', () => toggleFolderSelection(label.id, label.name, li));
@@ -287,7 +291,7 @@ async function renderDrawer() {
     }
 }
 
-// --- 3. LOGICA "SVUOTA CARTELLA" ---
+// --- 3. LOGICA "SVUOTA CARTELLA" E "ELIMINA CARTELLA" ---
 async function emptyLabel(labelId, labelName) {
     if (!confirm(`⚠️ SEI SICURO?\nStai per eliminare DEFINITIVAMENTE tutte le email nella cartella "${labelName}".`)) {
         return;
@@ -297,6 +301,7 @@ async function emptyLabel(labelId, labelName) {
         let pageToken = null;
         let totalDeleted = 0;
         const btn = document.activeElement;
+        const originalText = btn.innerText;
         btn.innerText = "⏳...";
         btn.disabled = true;
 
@@ -331,6 +336,31 @@ async function emptyLabel(labelId, labelName) {
         loadLabels(); 
     }
 }
+
+async function deleteLabel(labelId, labelName) {
+    if (!confirm(`⚠️ SEI SICURO?\nStai per eliminare la cartella "${labelName}".\n\nNota bene: Le email al suo interno NON verranno cancellate, ma torneranno visibili nella posta principale. Se vuoi cancellare anche le email, clicca su "Annulla" e usa prima il tasto "Svuota".`)) {
+        return;
+    }
+
+    try {
+        await gapi.client.gmail.users.labels.delete({
+            'userId': 'me',
+            'id': labelId
+        });
+        
+        // Rimuovi la cartella dai fascicoli selezionati se era aperta
+        selectedFolders = selectedFolders.filter(f => f.id !== labelId);
+        
+        alert(`✅ Gruppo "${labelName}" eliminato con successo.`);
+        
+        loadLabels(); // Ricarica la lista nella sidebar
+        renderDrawer(); // Aggiorna il cassetto in basso
+        
+    } catch (err) {
+        alert("Errore durante l'eliminazione del gruppo: " + err.message);
+    }
+}
+window.deleteLabel = deleteLabel;
 
 // --- 4. LISTE EMAIL, RICERCA DINAMICA E RENDER ---
 
@@ -463,8 +493,6 @@ async function renderMessagesList(messages, container) {
       `;
 
       // --- CLICK / TAP ---
-      // Su mobile: tap singolo → apri email (dblclick non esiste su touch)
-      // Su desktop: click → seleziona, dblclick → apri
       let tapTimer = null;
       div.addEventListener('click', (e) => {
         if (isMobile()) {
