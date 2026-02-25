@@ -68,29 +68,6 @@
             </div>
         </main>
 
-        <!-- ═══ PANNELLO SCANSIONE DESTRA ═══ -->
-        <aside id="scan-panel" class="hidden">
-          <div class="sp-header">
-            <div class="sp-header-left">
-              <span class="sp-icon">📡</span>
-              <div>
-                <div class="sp-title">Scansione Inbox</div>
-                <div id="sp-stats" class="sp-subtitle">—</div>
-              </div>
-            </div>
-            <button id="sp-toggle-btn" class="sp-toggle" onclick="toggleScanPanel()" title="Chiudi pannello">✕</button>
-          </div>
-
-          <div id="sp-progress-wrap">
-            <div id="sp-progress-track">
-              <div id="sp-fill"></div>
-            </div>
-            <div id="sp-progress-text">Caricamento...</div>
-          </div>
-
-          <div id="sp-list"></div>
-        </aside>
-
     </div>
 
     <div id="custom-menu">
@@ -116,18 +93,6 @@
 
     <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
-       <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
-    <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
-    
-    <script src="js/config.js"></script>
-    <script src="js/auth.js"></script>
-    <script src="js/ui.js"></script>
-    <script src="js/labels.js"></script>
-    <script src="js/emails.js"></script>
-    <script src="js/grouping.js"></script>
-    <script src="js/scan.js"></script>
-</body>
-</html>
- </script>
+    <script src="app.js"></script>
 </body>
 </html>
