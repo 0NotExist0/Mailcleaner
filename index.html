@@ -6,20 +6,67 @@
     <title>MailCleaner - Pulizia Rapida</title>
     <style>
         body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-        .hidden { display: none; }
-        .email-item { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center;}
+        .hidden { display: none !important; }
+        
+        /* Stile delle email */
+        .email-item { 
+            border: 1px solid #ccc; 
+            padding: 10px; 
+            margin-bottom: 10px; 
+            border-radius: 5px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .email-item:hover { background-color: #f9f9f9; }
+        
+        /* Stile mail selezionata */
+        .email-item.selected {
+            background-color: #e0f7fa;
+            border-color: #00bcd4;
+        }
+
+        /* Pulsanti base */
         button { padding: 10px 15px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 5px; }
         button:hover { background-color: #0056b3; }
         .btn-delete { background-color: #dc3545; }
         .btn-delete:hover { background-color: #c82333; }
+
+        /* Menu contestuale (tasto destro) */
+        #custom-menu {
+            display: none;
+            position: absolute;
+            background-color: white;
+            border: 1px solid #ccc;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+            border-radius: 5px;
+            overflow: hidden;
+            min-width: 220px;
+        }
+        #custom-menu button {
+            display: block;
+            width: 100%;
+            text-align: left;
+            background: none;
+            color: #333;
+            border: none;
+            border-radius: 0;
+            padding: 10px 20px;
+        }
+        #custom-menu button:hover {
+            background-color: #f0f0f0;
+        }
     </style>
 </head>
 <body>
 
     <h1>MailCleaner 🧹</h1>
-    <p>Elimina velocemente le email inutili (promozioni, newsletter, ecc).</p>
+    <p>Elimina velocemente le email inutili o raggruppale per mittente.</p>
 
-    <button id="authorize_button" onclick="handleAuthClick()">Accedi con Google</button>
+    <button id="authorize_button" onclick="handleAuthClick()" style="display: none;">Accedi con Google</button>
     <button id="signout_button" class="hidden" onclick="handleSignoutClick()">Esci</button>
 
     <hr>
@@ -27,6 +74,11 @@
     <div id="content" class="hidden">
         <button onclick="listEmails()">Trova le email inutili (Promozioni)</button>
         <div id="email_list" style="margin-top: 20px;"></div>
+    </div>
+
+    <div id="custom-menu">
+        <button id="menu-delete">🗑️ Cancella email</button>
+        <button id="menu-group">📁 Raggruppa per mittente</button>
     </div>
 
     <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
